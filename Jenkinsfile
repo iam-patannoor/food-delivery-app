@@ -1,43 +1,59 @@
 pipeline {
     agent any 
     tools {
-        maven "mymaven"
+        maven "my-maven"
     }
     stages {
-        stage ("Code") {
+        stage ("code") {
             steps {
-                git branch: 'main', url: 'https://github.com/iam-patannoor/food-delivery-app.git'
+                git 'https://github.com/iam-patannoor/food-delivery-app.git'
             }
         }
         stage ("build") {
             steps {
-                sh "mvn clean "
+                sh "mvn clean install"
             }
         }
-        stage ("unit test") {
+        stage ("CQA") {
             steps {
                 withSonarQubeEnv("my-sonar") {
-                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=food-delivery-app"
-                    }
+                 sh "mvn clean verify sonar:sonar -Dsonar.projectKey=food-delivery-app"
+               }
             }
         }
-        stage("Quality gates") {
+        stage ("Quality gates") {
             steps {
-                waitForQualityGate abortPipeline: true, credentialsId: 'sonar'
+                waitForQualityGate abortPipeline: true, credentialsId: 'my-sonar'
             }
         }
-        stage ("Docker tag") {
+        stage ("artifact") {
             steps {
-                echo "dcoker build"
+                echo "this stage is artifact"
             }
         }
-        stage ("Docker push") {
+        stage ("Docker build") {
             steps {
-                echo "docker tag"
-                echo "docker push"
+                sh "docker build -t food-image:v1 ." 
+            }
+        }
+        stage ("Docker registry") {
+            steps {
+                withDockerRegistry(credentialsId: 'Docker', url: 'https://index.docker.io/v1/') 
+                 {
+                     sh "docker tag food-image:v1 patannor/food-app:appv1"
+                     sh "docker push patannor/food-app:appv1"
+                  }
+            }   
+        }
+        stage ("Container creation") {
+            steps {
+                sh "docker run -itd --name cont1 -p 1111:8080 patannoor/food-app:appv1"
+                echo "application successfully deployed"
             }
         }
     }
 }
 
-
+//pluginsused:-Docker pipeline
+//sonarqube-2
+//give permission sudo chown root:docker /var/run/docker.sock
